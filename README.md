@@ -1,42 +1,126 @@
-# 基于 MediaPipe + OpenCV 的交互贪吃蛇
+# 🐍 交互手势贪吃蛇 (Gesture Snake MediaPipe)
 
-## 项目简介
-“交互手势贪吃蛇”是一款通过摄像头实时识别手势来控制贪吃蛇的轻量项目。指尖所指即蛇头移动，OK 手势开始游戏，按下 q 第一次暂停并在屏幕中央显示分数，再按 q 退出。项目支持 MediaPipe solutions 与 MediaPipe Tasks 两种后端，并针对边缘识别进行了鲁棒性增强（检测图像复制边缘填充、基于上帧的 ROI 回退、CLAHE 亮度增强），在大窗口全屏渲染下依然保持顺滑体验。游戏为无尽模式，只记录分数，不设上限。
+**用手指“指向”控制贪吃蛇，实时摄像头交互零延迟！**
 
-### 特色亮点
-- 实时手势控制（指尖定位驱动蛇移动）
-- 双后端可选（solutions 0.8.x / tasks 0.10+），接口兼容
-- 边缘鲁棒性增强（填充、ROI 回退、CLAHE），边界处识别更稳
-- 全屏 UI 与抗锯齿连线，蛇尾平滑跟随
-- 无尽模式，仅分数累计，玩法更简洁
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![MediaPipe](https://img.shields.io/badge/MediaPipe-Solutions%2FTasks-orange)](https://developers.google.com/mediapipe)
 
-## 环境与运行
-- conda activate env_mediapipe
-- pip install -r requirements.txt
-- python main.py
+> 💡 **提示**：建议在光线充足的环境下游玩，以获得最佳手势识别体验。
 
-## 主要文件
-- main.py：入口，整合相机、手势检测与渲染
-- config.py：统一配置（分辨率、颜色、手势常量）
-- camera_manager.py：摄像头初始化与取帧
-- hand_detector.py：手势检测（支持 solutions / tasks 后端），含边缘填充、ROI 回退、亮度增强
-- snake_game.py：游戏逻辑（无尽模式、只记录分数）
-- game_ui.py：UI 渲染（全屏模式、暂停居中分数）
+---
 
-## 控制说明
-- 手指指向移动（显示十字准星）
-- 按 q 第一次：暂停并居中显示分数
-- 再次按 q：退出
-- 按 r：重新开始
+## 📺 演示效果
 
-## 模型（可选）
-- 若使用 MediaPipe Tasks Hand Landmarker：
-  - 将 hand_landmarker.task 放在项目根目录或 models/ 目录下皆可
-  - 在 config.py 设置 HAND_BACKEND = "TASKS"；TASKS_MODEL_PATH 可留空或自定义路径
-  - pip 安装 mediapipe>=0.10.21
+*(此处建议插入 15-30 秒的游戏演示 GIF，展示流畅的指尖控制与无尽模式体验)*
 
-## 发行与忽略
-- 见 .gitignore，已忽略二进制模型、缓存与生成文件
+<!-- <img src="assets/demo.gif" width="600" alt="Game Demo"> -->
 
-## 关键词
-- opencv, mediapipe, hand-tracking, gesture-control, snake, game, tasks, solutions
+## 📸 游戏截图
+
+| 游戏运行 | 暂停菜单 | 手势准星 |
+|:---:|:---:|:---:|
+| *(请补充运行截图)* | *(请补充暂停截图)* | *(请补充准星特写)* |
+| <!-- <img src="assets/screenshot_game.jpg" width="200"> --> | <!-- <img src="assets/screenshot_pause.jpg" width="200"> --> | <!-- <img src="assets/screenshot_crosshair.jpg" width="200"> --> |
+
+---
+
+## 📖 项目简介
+
+“交互手势贪吃蛇”是一款通过摄像头实时识别手势来控制贪吃蛇的轻量级 Python 游戏项目。不同于传统的键盘控制，本项目利用 MediaPipe 强大的手部关键点检测能力，实现了**指尖所指即蛇头移动**的直观交互体验。
+
+游戏设计为**无尽模式**，没有生命限制，旨在挑战更高的分数。
+
+### ✨ 特色亮点
+- **零延迟手势交互**：指尖定位驱动蛇移动，顺滑跟手。
+- **双后端支持**：兼容 MediaPipe Solutions (0.8.x) 与 MediaPipe Tasks (0.10+)。
+- **边缘鲁棒性增强**：采用图像边缘填充、ROI 回退机制与 CLAHE 亮度增强，有效解决手部移出画面边缘时的抖动丢失问题。
+- **沉浸式视觉体验**：全屏 UI 设计，抗锯齿蛇身连线，平滑尾部跟随算法。
+- **简洁无尽玩法**：专注得分，OK 手势开始，Q 键暂停/退出。
+
+---
+
+## 🚀 快速启动
+
+### 1. 环境准备
+确保已安装 Python 3.8+ 与 Conda（可选）。
+
+```bash
+# 创建虚拟环境
+conda create -n env_mediapipe python=3.10
+conda activate env_mediapipe
+
+# 安装基础依赖
+pip install -r requirements.txt
+```
+
+### 2. 运行游戏
+```bash
+python main.py
+```
+
+### 3. 一键体验 Tasks 后端（推荐）
+如果你想体验更新、更稳的 MediaPipe Tasks 模型：
+
+```bash
+# 1. 安装新版依赖
+pip install -r requirements.tasks.txt
+
+# 2. 自动下载模型并运行
+python download_model.py
+python main.py
+```
+*(运行 `download_model.py` 会自动下载 `hand_landmarker.task` 并配置后端)*
+
+---
+
+## 📂 目录结构
+
+```text
+gesture-snake-mediapipe/
+├── main.py                 # 程序入口：整合相机、检测与渲染
+├── config.py               # 全局配置：分辨率、颜色、后端开关
+├── camera_manager.py       # 摄像头管理：初始化与帧读取
+├── hand_detector.py        # 核心检测：封装 Solutions/Tasks 双后端、鲁棒性增强算法
+├── snake_game.py           # 游戏逻辑：状态机、无尽模式分数管理
+├── game_ui.py              # UI渲染：全屏绘制、抗锯齿、信息HUD
+├── mp_hands_wrapper.py     # 兼容层：适配旧版 MediaPipe 接口
+├── download_model.py       # 脚本：自动下载 Tasks 模型
+├── requirements.txt        # 基础依赖 (Solutions 后端)
+├── requirements.tasks.txt  # 进阶依赖 (Tasks 后端)
+├── README.md               # 项目文档
+├── LICENSE                 # 开源许可证
+├── models/                 # 模型存放目录
+│   └── README.md
+└── assets/                 # 演示素材目录 (截图/GIF)
+```
+
+---
+
+## 🎮 控制说明
+
+- **移动**：伸出食指，屏幕会出现十字准星，蛇头将跟随准星移动。
+- **开始**：对着摄像头做 👌 **OK 手势**。
+- **暂停**：按下键盘 **`Q`** 键，屏幕居中显示当前分数。
+- **退出**：在暂停状态下再次按下 **`Q`** 键。
+- **重开**：游戏结束或暂停时，按下 **`R`** 键。
+
+---
+
+## 🗺️ 未来计划 (Roadmap)
+
+- [ ] **多手势支持**：支持左/右手切换控制。
+- [ ] **多人对战**：本地双人同屏竞技模式。
+- [ ] **道具系统**：增加加速、减速、无敌等趣味道具。
+- [ ] **Web 移植**：使用 MediaPipe JS 移植到浏览器运行。
+
+---
+
+## 📄 License
+
+本项目采用 [MIT License](LICENSE) 开源。欢迎 Fork 与 Star！🌟
+
+---
+
+## 🏷️ 关键词
+`opencv` `mediapipe` `hand-tracking` `gesture-control` `snake-game` `computer-vision` `python`
