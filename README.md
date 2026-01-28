@@ -40,6 +40,19 @@
 
 ---
 
+## 🌐 Web 演示版 (无需安装)
+
+本项目已提供纯前端移植版本，基于 MediaPipe JS 实现，**零延迟、免安装、即点即玩**！
+
+### 在线体验
+1. 本项目已配置 GitHub Pages 支持。
+2. 直接访问项目的 GitHub Pages 地址即可（需在设置中开启）。
+3. 或在本地进入 `docs/` 目录运行。
+
+*(注：Web 版完全运行在本地浏览器中，不会上传任何视频数据)*
+
+---
+
 ## 🚀 快速启动
 
 ### 1. 环境准备
@@ -92,6 +105,10 @@ gesture-snake-mediapipe/
 ├── LICENSE                 # 开源许可证
 ├── models/                 # 模型存放目录
 │   └── README.md
+├── docs/                   # Web 演示版 (GitHub Pages)
+│   ├── index.html
+│   ├── script.js
+│   └── style.css
 └── assets/                 # 演示素材目录 (截图/GIF)
 ```
 
@@ -112,7 +129,7 @@ gesture-snake-mediapipe/
 - [ ] **多手势支持**：支持左/右手切换控制。
 - [ ] **多人对战**：本地双人同屏竞技模式。
 - [ ] **道具系统**：增加加速、减速、无敌等趣味道具。
-- [ ] **Web 移植**：使用 MediaPipe JS 移植到浏览器运行。
+- [x] **Web 移植**：使用 MediaPipe JS 移植到浏览器运行 (已完成)。
 
 ---
 

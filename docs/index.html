@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交互手势贪吃蛇 | Gesture Snake</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- MediaPipe 依赖 -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 游戏层 -->
+        <canvas id="gameCanvas"></canvas>
+        <!-- 摄像头视频层 (隐藏，仅用于处理) -->
+        <video id="inputVideo" style="display: none;"></video>
+        
+        <!-- UI 层 -->
+        <div id="uiLayer">
+            <div id="scoreBoard">
+                Score: <span id="scoreVal">0</span>
+            </div>
+            
+            <div id="startScreen" class="overlay">
+                <h1>🐍 交互手势贪吃蛇</h1>
+                <p>Gesture Snake Game</p>
+                <div class="instruction">
+                    <p>👆 <strong>食指指向</strong> 控制移动</p>
+                    <p>👌 <strong>OK 手势</strong> 开始游戏</p>
+                    <p>✊ <strong>握拳</strong> 暂停</p>
+                </div>
+                <div class="status-text">正在加载模型...</div>
+            </div>
+
+            <div id="pauseScreen" class="overlay" style="display: none;">
+                <h1>已暂停</h1>
+                <p>做 👌 OK 手势继续</p>
+            </div>
+
+            <div id="gameOverScreen" class="overlay" style="display: none;">
+                <h1 style="color: #ff4444;">游戏结束</h1>
+                <p>最终得分: <span id="finalScore">0</span></p>
+                <p>做 👌 OK 手势重试</p>
+            </div>
+        </div>
+        
+        <!-- 调试信息 -->
+        <div id="debugInfo">FPS: 0</div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
