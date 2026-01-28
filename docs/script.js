@@ -9,13 +9,15 @@ const finalScoreEl = document.getElementById('finalScore');
 const statusText = document.querySelector('.status-text');
 const startBtn = document.getElementById('startBtn');
 const restartBtn = document.getElementById('restartBtn');
+const pauseScoreEl = document.getElementById('pauseScoreVal');
 
 // 游戏配置
 const CONFIG = {
     cameraWidth: 1280,
     cameraHeight: 720,
-    snakeSpeed: 3,
-    segmentDist: 15,
+    snakeSpeedPPS: 200, // 像素/秒
+    segmentDist: 10, // Match Python version
+    tailSmooth: 0.35, // Smoothing factor for body movement
     colors: {
         head: '#22C55E',
         bodyStart: '#22C55E',
@@ -60,6 +62,7 @@ function initGame() {
         {x: cx, y: cy + CONFIG.segmentDist * 2}
     ];
     gameState.targetPos = {x: cx, y: cy};
+    gameState.lastTime = performance.now(); // Reset timer
     
     spawnFood();
     gameState.status = 'RUNNING';
@@ -87,7 +90,7 @@ function spawnFood() {
     gameState.food = {x, y};
 }
 
-function updateGame() {
+function updateGame(dt) {
     if (gameState.status !== 'RUNNING') return;
 
     // 1. 蛇头移动（平滑跟随目标）
@@ -99,10 +102,13 @@ function updateGame() {
         
         // 只有当距离足够大时才移动，避免抖动
         if (dist > 5) {
-            const speed = CONFIG.snakeSpeed + (gameState.score * 0.05); // 随分数微量加速
-            const moveDist = Math.min(dist, speed);
+            // 使用 Delta Time 计算当帧移动距离
+            // distance = speed * time
+            const moveStep = CONFIG.snakeSpeedPPS * dt;
+            const moveDist = Math.min(dist, moveStep);
             const angle = Math.atan2(dy, dx);
             
+            // 直接移动，不使用平滑，保证响应速度
             head.x += Math.cos(angle) * moveDist;
             head.y += Math.sin(angle) * moveDist;
         }
@@ -118,10 +124,18 @@ function updateGame() {
         const dist = Math.hypot(dx, dy);
         
         if (dist > CONFIG.segmentDist) {
-            const angle = Math.atan2(dy, dx);
-            // 移动到距离上一节 segmentDist 的位置
-            curr.x = prev.x - Math.cos(angle) * CONFIG.segmentDist;
-            curr.y = prev.y - Math.sin(angle) * CONFIG.segmentDist;
+            const ratio = dist !== 0 ? CONFIG.segmentDist / dist : 0;
+            const targetX = prev.x - dx * ratio;
+            const targetY = prev.y - dy * ratio;
+            
+            // 使用帧率无关的平滑公式 (Lerp with Delta Time)
+            // factor = 1 - exp(-decay * dt)
+            // decay 越大越快。CONFIG.tailSmooth 调整为 decay 值，比如 10-20
+            const decay = 15.0; 
+            const smoothFactor = 1 - Math.exp(-decay * dt);
+
+            curr.x += (targetX - curr.x) * smoothFactor;
+            curr.y += (targetY - curr.y) * smoothFactor;
         }
     }
 
@@ -171,7 +185,7 @@ function drawGame() {
         
         canvasCtx.lineCap = 'round';
         canvasCtx.lineJoin = 'round';
-        canvasCtx.lineWidth = 18;
+        canvasCtx.lineWidth = CONFIG.segmentDist * 1.8; // 动态调整宽度
         // 简单渐变色模拟
         const grad = canvasCtx.createLinearGradient(
             gameState.snake[0].x, gameState.snake[0].y,
@@ -186,7 +200,7 @@ function drawGame() {
         canvasCtx.shadowBlur = 10;
         canvasCtx.shadowColor = CONFIG.colors.head;
         canvasCtx.beginPath();
-        canvasCtx.arc(gameState.snake[0].x, gameState.snake[0].y, 10, 0, 2 * Math.PI);
+        canvasCtx.arc(gameState.snake[0].x, gameState.snake[0].y, CONFIG.segmentDist, 0, 2 * Math.PI);
         canvasCtx.fillStyle = CONFIG.colors.head;
         canvasCtx.fill();
         canvasCtx.shadowBlur = 0;
@@ -227,6 +241,11 @@ hands.setOptions({
 hands.onResults(onResults);
 
 function onResults(results) {
+    // 计算 Delta Time
+    const now = performance.now();
+    const dt = (now - gameState.lastTime) / 1000; // 秒
+    gameState.lastTime = now;
+
     // 1. 绘制摄像头画面
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -263,9 +282,6 @@ function onResults(results) {
         const distThumbIndex = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
         const isOK = distThumbIndex < 0.05 && isMiddleUp && isRingUp;
 
-        // 握拳检测
-        const isFist = fingersUp === 0;
-
         // 坐标映射 (MediaPipe输出是归一化的)
         fingerPos = {
             x: indexTip.x * CONFIG.cameraWidth,
@@ -274,13 +290,14 @@ function onResults(results) {
 
         // 状态机流转
         if (isOK) {
-            if (gameState.status === 'STOPPED' || gameState.status === 'GAMEOVER' || gameState.status === 'PAUSED') {
+            if (gameState.status === 'STOPPED' || gameState.status === 'GAMEOVER') {
                 initGame();
-            }
-        } else if (isFist) {
-            if (gameState.status === 'RUNNING') {
-                gameState.status = 'PAUSED';
-                pauseScreen.style.display = 'flex';
+            } else if (gameState.status === 'PAUSED') {
+                // Resume game
+                gameState.status = 'RUNNING';
+                pauseScreen.style.display = 'none';
+                // 重置时间防止跳跃
+                gameState.lastTime = performance.now();
             }
         } else {
             // 更新目标位置
@@ -291,7 +308,9 @@ function onResults(results) {
     }
 
     // 3. 游戏渲染
-    updateGame();
+    // 限制最大 dt 防止切换后台后跳跃
+    const safeDt = Math.min(dt, 0.1); 
+    updateGame(safeDt);
     drawGame();
 
     canvasCtx.restore();
@@ -313,6 +332,24 @@ startBtn.addEventListener('click', () => {
 
 restartBtn.addEventListener('click', () => {
     initGame();
+});
+
+// 键盘控制 (Q键暂停/退出)
+document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'q') {
+        if (gameState.status === 'RUNNING') {
+            // 暂停
+            gameState.status = 'PAUSED';
+            if (pauseScoreEl) pauseScoreEl.innerText = gameState.score;
+            pauseScreen.style.display = 'flex';
+        } else if (gameState.status === 'PAUSED') {
+            // 退出到标题
+            gameState.status = 'STOPPED';
+            pauseScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+            setTimeout(() => startScreen.style.opacity = '1', 10);
+        }
+    }
 });
 
 // 启动流程
