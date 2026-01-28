@@ -7,6 +7,8 @@ const pauseScreen = document.getElementById('pauseScreen');
 const gameOverScreen = document.getElementById('gameOverScreen');
 const finalScoreEl = document.getElementById('finalScore');
 const statusText = document.querySelector('.status-text');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
 
 // 游戏配置
 const CONFIG = {
@@ -15,10 +17,10 @@ const CONFIG = {
     snakeSpeed: 3,
     segmentDist: 15,
     colors: {
-        head: '#00ff00',
-        bodyStart: [0, 200, 0],
-        bodyEnd: [0, 100, 0],
-        food: '#ff0000'
+        head: '#22C55E',
+        bodyStart: '#22C55E',
+        bodyEnd: '#15803d',
+        food: '#ff0055'
     }
 };
 
@@ -34,6 +36,8 @@ let gameState = {
 
 // 初始化画布
 function resizeCanvas() {
+    // 保持16:9比例
+    const container = document.querySelector('.game-wrapper');
     canvasElement.width = CONFIG.cameraWidth;
     canvasElement.height = CONFIG.cameraHeight;
 }
@@ -60,9 +64,11 @@ function initGame() {
     spawnFood();
     gameState.status = 'RUNNING';
     
-    startScreen.style.display = 'none';
+    startScreen.style.opacity = '0';
+    setTimeout(() => startScreen.style.display = 'none', 300);
     pauseScreen.style.display = 'none';
     gameOverScreen.style.display = 'none';
+    document.getElementById('scoreBoard').style.display = 'block';
 }
 
 function spawnFood() {
@@ -103,10 +109,6 @@ function updateGame() {
     }
 
     // 2. 蛇身跟随
-    // 算法：每一节朝向上一节的目标位置移动，保持固定间距
-    // 这里使用简化版：重新计算每个关节的位置
-    // 为了平滑效果，我们让每个关节追踪上一节的历史位置会更好，
-    // 但简单的 IK (Inverse Kinematics) 风格跟随在这里也够用
     for (let i = 1; i < gameState.snake.length; i++) {
         const curr = gameState.snake[i];
         const prev = gameState.snake[i-1];
@@ -139,15 +141,15 @@ function updateGame() {
 }
 
 function drawGame() {
-    // 绘制食物
+    // 绘制食物 (带发光效果)
     if (gameState.food) {
+        canvasCtx.shadowBlur = 15;
+        canvasCtx.shadowColor = CONFIG.colors.food;
         canvasCtx.beginPath();
-        canvasCtx.arc(gameState.food.x, gameState.food.y, 10, 0, 2 * Math.PI);
+        canvasCtx.arc(gameState.food.x, gameState.food.y, 8, 0, 2 * Math.PI);
         canvasCtx.fillStyle = CONFIG.colors.food;
         canvasCtx.fill();
-        canvasCtx.strokeStyle = 'white';
-        canvasCtx.lineWidth = 2;
-        canvasCtx.stroke();
+        canvasCtx.shadowBlur = 0;
     }
 
     // 绘制蛇
@@ -169,40 +171,40 @@ function drawGame() {
         
         canvasCtx.lineCap = 'round';
         canvasCtx.lineJoin = 'round';
-        canvasCtx.lineWidth = 20;
+        canvasCtx.lineWidth = 18;
         // 简单渐变色模拟
         const grad = canvasCtx.createLinearGradient(
             gameState.snake[0].x, gameState.snake[0].y,
             gameState.snake[gameState.snake.length-1].x, gameState.snake[gameState.snake.length-1].y
         );
-        grad.addColorStop(0, '#00ff00');
-        grad.addColorStop(1, '#006400');
+        grad.addColorStop(0, CONFIG.colors.bodyStart);
+        grad.addColorStop(1, CONFIG.colors.bodyEnd);
         canvasCtx.strokeStyle = grad;
         canvasCtx.stroke();
 
         // 绘制头
+        canvasCtx.shadowBlur = 10;
+        canvasCtx.shadowColor = CONFIG.colors.head;
         canvasCtx.beginPath();
-        canvasCtx.arc(gameState.snake[0].x, gameState.snake[0].y, 12, 0, 2 * Math.PI);
-        canvasCtx.fillStyle = '#00ff00';
+        canvasCtx.arc(gameState.snake[0].x, gameState.snake[0].y, 10, 0, 2 * Math.PI);
+        canvasCtx.fillStyle = CONFIG.colors.head;
         canvasCtx.fill();
-        canvasCtx.strokeStyle = 'white';
-        canvasCtx.lineWidth = 2;
-        canvasCtx.stroke();
+        canvasCtx.shadowBlur = 0;
     }
 
     // 绘制准星
     if (gameState.targetPos && gameState.status === 'RUNNING') {
         const {x, y} = gameState.targetPos;
-        canvasCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+        canvasCtx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
         canvasCtx.lineWidth = 2;
         canvasCtx.beginPath();
-        canvasCtx.moveTo(x - 10, y);
-        canvasCtx.lineTo(x + 10, y);
-        canvasCtx.moveTo(x, y - 10);
-        canvasCtx.lineTo(x, y + 10);
+        canvasCtx.moveTo(x - 15, y);
+        canvasCtx.lineTo(x + 15, y);
+        canvasCtx.moveTo(x, y - 15);
+        canvasCtx.lineTo(x, y + 15);
         canvasCtx.stroke();
         canvasCtx.beginPath();
-        canvasCtx.arc(x, y, 5, 0, 2 * Math.PI);
+        canvasCtx.arc(x, y, 8, 0, 2 * Math.PI);
         canvasCtx.stroke();
     }
 }
@@ -243,8 +245,7 @@ function onResults(results) {
         const middleTip = landmarks[12];
         const ringTip = landmarks[16];
         const pinkyTip = landmarks[20];
-        const wrist = landmarks[0];
-
+        
         // 简单的手指状态判断 (y坐标小于关节)
         const isIndexUp = indexTip.y < landmarks[6].y;
         const isMiddleUp = middleTip.y < landmarks[10].y;
@@ -265,19 +266,7 @@ function onResults(results) {
         // 握拳检测
         const isFist = fingersUp === 0;
 
-        // 指向检测 (食指伸出)
-        // 实际上只要食指伸出，我们就用食指作为光标
-        
-        // 坐标映射 (MediaPipe输出是归一化的，且因为我们Canvas做了镜像翻转scaleX(-1)，
-        // 所以x坐标需要反转一下才能对应屏幕视觉位置？
-        // 不，Canvas镜像了，绘制drawImage也是镜像的。
-        // MediaPipe给出的x是 0(左) -> 1(右)。
-        // 在镜像Canvas上，左边是1，右边是0。
-        // 所以我们需要 1 - x 吗？
-        // 让我们看看：如果我在摄像头前向左移（屏幕右边），x变大。
-        // 在镜像屏幕上，这应该显示在右边。
-        // 所以直接用 x * width 即可。
-        
+        // 坐标映射 (MediaPipe输出是归一化的)
         fingerPos = {
             x: indexTip.x * CONFIG.cameraWidth,
             y: indexTip.y * CONFIG.cameraHeight
@@ -299,10 +288,6 @@ function onResults(results) {
                 gameState.targetPos = fingerPos;
             }
         }
-
-        // 绘制骨架 (可选)
-        // drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
-        // drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
     }
 
     // 3. 游戏渲染
@@ -321,13 +306,23 @@ const camera = new Camera(videoElement, {
     height: 720
 });
 
+// 绑定按钮事件
+startBtn.addEventListener('click', () => {
+    initGame();
+});
+
+restartBtn.addEventListener('click', () => {
+    initGame();
+});
+
+// 启动流程
 camera.start()
     .then(() => {
-        statusText.innerText = "准备就绪！请做 👌 手势开始";
+        statusText.innerText = "摄像头已就绪";
         gameState.status = 'STOPPED';
     })
     .catch(err => {
         console.error(err);
-        statusText.innerText = "摄像头启动失败，请允许权限";
-        statusText.style.color = "red";
+        statusText.innerText = "请允许摄像头权限以继续";
+        statusText.style.color = "#ff4444";
     });
