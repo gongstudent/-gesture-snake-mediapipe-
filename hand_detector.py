@@ -75,23 +75,23 @@ class HandDetector:
         self.gesture_history = deque(maxlen=5) # Keep last 5 frames for smoothing
 
     def start(self):
-        """Start the detection thread."""
+        """启动检测线程。"""
         self.is_running = True
         self.thread = threading.Thread(target=self._detection_loop, daemon=True)
         self.thread.start()
 
     def stop(self):
-        """Stop the detection thread."""
+        """停止检测线程。"""
         self.is_running = False
         if self.thread:
             self.thread.join()
 
     def update_frame(self, frame):
-        """Update the frame for the detection thread to process."""
+        """更新检测线程处理的帧。"""
         if frame is None:
             return
         
-        # Resize for performance optimization as requested
+        # 按需调整大小以进行性能优化
         small_frame = cv2.resize(frame, (config.DETECTION_WIDTH, config.DETECTION_HEIGHT))
         pad = getattr(config, "DETECTION_PAD", 0)
         if pad and pad > 0:
@@ -103,12 +103,12 @@ class HandDetector:
             self.frame_to_process = small_frame
 
     def get_results(self):
-        """Get the latest detection results."""
+        """获取最新的检测结果。"""
         with self.lock:
             return self.latest_result, self.latest_gesture
     
     def get_finger_position(self):
-        """Get the index finger tip position for direct control (normalized 0-1)."""
+        """获取用于直接控制的食指指尖位置（归一化 0-1）。"""
         with self.lock:
             if self.latest_finger_norm is not None:
                 return self.latest_finger_norm
@@ -269,8 +269,8 @@ class HandDetector:
                         self.prev_bbox = (x0b, y0b, max(roi_min, x1b - x0b), max(roi_min, y1b - y0b))
 
     def _recognize_gesture(self, landmarks):
-        """Recognize gesture based on landmarks."""
-        # Get coordinates
+        """基于关键点识别手势。"""
+        # 获取坐标
         h, w = config.DETECTION_HEIGHT, config.DETECTION_WIDTH
         lm_list = []
         for id, lm in enumerate(landmarks.landmark):
@@ -280,23 +280,23 @@ class HandDetector:
         if not lm_list:
             return config.GESTURE_NONE
 
-        # Fingers state (0: Thumb, 1: Index, 2: Middle, 3: Ring, 4: Pinky)
+        # 手指状态 (0: 拇指, 1: 食指, 2: 中指, 3: 无名指, 4: 小指)
         fingers = []
 
-        # Thumb (Check x position relative to IP joint depending on handedness is complex)
-        # Simplified: Check if tip is far from index base (MCP)
-        # Better: Check if tip x is to the left/right of IP x. 
-        # Assuming right hand (mirror) or general "sticking out"
-        # Let's use a simpler heuristic: distance from wrist vs IP distance?
-        # Standard way: Tip x < IP x (Right Hand, palm facing camera)
-        # Since we flipped the image, it behaves like a mirror. 
-        # Let's stick to simple geometry.
+        # 拇指 (检查 x 坐标相对于 IP 关节的位置，这取决于惯用手，比较复杂)
+        # 简化版：检查指尖是否远离食指基部 (MCP)
+        # 更好：检查指尖 x 是在 IP x 的左边还是右边。
+        # 假设右手 (镜像) 或一般 "伸出"
+        # 让我们使用一个更简单的启发式方法：距离手腕 vs IP 距离？
+        # 标准方式：指尖 x < IP x (右手，手掌面向摄像头)
+        # 因为我们翻转了图像，所以它表现得像镜子。
+        # 让我们坚持简单的几何学。
         
-        # Thumb: Compare Tip (4) with IP (3)
-        # But for direction control, we assume "Pointing"
+        # 拇指：比较指尖 (4) 和 IP (3)
+        # 但对于方向控制，我们假设 "指向"
         
-        # Let's check vertical fingers (Index, Middle, Ring, Pinky)
-        # Tip y < PIP y means finger is UP
+        # 让我们检查垂直手指 (食指、中指、无名指、小指)
+        # 指尖 y < PIP y 意味着手指是向上的
         tips = [8, 12, 16, 20]
         pips = [6, 10, 14, 18]
         
@@ -306,55 +306,55 @@ class HandDetector:
             else:
                 fingers.append(0)
         
-        # Thumb (id 4) logic:
-        # Check if thumb tip is to the side of MCP (2).
-        # We need to know handedness or just use distance from Index MCP (5).
-        # If distance(4, 5) > threshold?
-        # Let's count thumb as open if tip is far from palm center (0 or 9).
+        # 拇指 (id 4) 逻辑：
+        # 检查拇指指尖是否在 MCP (2) 的侧面。
+        # 我们需要知道惯用手或者仅使用与食指 MCP (5) 的距离。
+        # 如果 distance(4, 5) > threshold?
+        # 如果指尖远离手掌中心 (0 或 9)，我们就算拇指是张开的。
         thumb_tip = lm_list[4]
         index_mcp = lm_list[5]
-        # Simple Euclidean distance
+        # 简单的欧几里得距离
         dist_thumb_index = ((thumb_tip[0]-index_mcp[0])**2 + (thumb_tip[1]-index_mcp[1])**2)**0.5
-        # Normalize by wrist-index_mcp length
+        # 通过 手腕-食指MCP 长度进行归一化
         ref_len = ((lm_list[0][0]-lm_list[5][0])**2 + (lm_list[0][1]-lm_list[5][1])**2)**0.5
         
         thumb_up = 0
-        if dist_thumb_index > ref_len * 0.5: # Heuristic
+        if dist_thumb_index > ref_len * 0.5: # 启发式
             thumb_up = 1
         
         total_fingers = fingers.count(1) + thumb_up
         
-        # 1. Quit: All 5 fingers
+        # 1. 退出：所有5个手指
         if total_fingers == 5:
             return config.GESTURE_QUIT
         
-        # 2. Pause: Fist (0 fingers)
+        # 2. 暂停：握拳 (0个手指)
         if total_fingers == 0:
             return config.GESTURE_PAUSE
         
-        # 3. Restart: OK (Thumb and Index touching, others up)
-        # Check distance between Thumb Tip (4) and Index Tip (8)
+        # 3. 重启：OK (拇指和食指接触，其他手指向上)
+        # 检查拇指指尖 (4) 和食指指尖 (8) 之间的距离
         dist_ok = ((lm_list[4][0]-lm_list[8][0])**2 + (lm_list[4][1]-lm_list[8][1])**2)**0.5
         if dist_ok < ref_len * 0.3 and fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1: 
-            # Note: fingers list corresponds to Index, Middle, Ring, Pinky.
-            # fingers[0] is Index. fingers[1] is Middle.
-            # OK gesture: Thumb+Index circle, Middle/Ring/Pinky UP.
-            # So fingers should be [0, 1, 1, 1] roughly (Index might be counted as down if curled)
-            # Actually, in OK sign, Index tip is down/touching thumb.
+            # 注意：fingers 列表对应食指、中指、无名指、小指。
+            # fingers[0] 是食指。fingers[1] 是中指。
+            # OK 手势：拇指+食指圆圈，中指/无名指/小指向上。
+            # 所以 fingers 应该是 [0, 1, 1, 1] 大致 (如果食指卷曲可能被算作向下)
+            # 实际上，在 OK 手势中，食指指尖是向下/接触拇指的。
             return config.GESTURE_RESTART
 
-        # Refined OK check:
-        # Index tip (8) close to Thumb tip (4)
-        # Middle (12), Ring (16), Pinky (20) are UP.
+        # 改进的 OK 检查：
+        # 食指指尖 (8) 靠近拇指指尖 (4)
+        # 中指 (12)、无名指 (16)、小指 (20) 向上。
         if dist_ok < ref_len * 0.3 and fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1:
              return config.GESTURE_RESTART
 
-        # 4. Direction Control: Two fingers (Index + Middle)
-        # Condition: Index (8) and Middle (12) are UP. Ring and Pinky are DOWN.
+        # 4. 方向控制：两个手指 (食指 + 中指)
+        # 条件：食指 (8) 和中指 (12) 向上。无名指和小指向下。
         if fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0:
-            # Check orientation
-            # Vector from MCP (5, 9) to Tip (8, 12)
-            # Average the tips and MCPs
+            # 检查方向
+            # 从 MCP (5, 9) 到指尖 (8, 12) 的向量
+            # 平均指尖和 MCP
             avg_tip_x = (lm_list[8][0] + lm_list[12][0]) / 2
             avg_tip_y = (lm_list[8][1] + lm_list[12][1]) / 2
             avg_mcp_x = (lm_list[5][0] + lm_list[9][0]) / 2
@@ -368,16 +368,16 @@ class HandDetector:
             else:
                 return config.GESTURE_DOWN if dy > 0 else config.GESTURE_UP
         
-        # Fallback single finger pointing (just in case user uses one finger)
+        # 回退单指指向 (以防用户仅使用一个手指)
         if fingers[0] == 1 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0:
-             # Similar logic
+             # 类似逻辑
              dx = lm_list[8][0] - lm_list[5][0]
              dy = lm_list[8][1] - lm_list[5][1]
              if abs(dx) > abs(dy):
                 return config.GESTURE_RIGHT if dx > 0 else config.GESTURE_LEFT
              else:
                 return config.GESTURE_DOWN if dy > 0 else config.GESTURE_UP
-
+        
         return config.GESTURE_NONE
 
     def draw_landmarks(self, frame, results):

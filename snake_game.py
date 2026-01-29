@@ -22,10 +22,10 @@ class SnakeGame:
         self.tail_smooth = 0.35
         
     def start_game(self):
-        # Initialize snake with pixel coordinates in center of screen
+        # 使用屏幕中心像素坐标初始化蛇
         center_x = config.CAMERA_WIDTH // 2
         center_y = config.CAMERA_HEIGHT // 2
-        # Create initial snake body segments
+        # 创建初始蛇身节段
         self.snake = [
             (center_x, center_y),
             (center_x - self.segment_distance, center_y),
@@ -54,15 +54,15 @@ class SnakeGame:
         self.speed = config.DIFFICULTY_LEVELS["EASY"]
 
     def spawn_food(self):
-        # Spawn food at random pixel position on full screen
+        # 在全屏随机像素位置生成食物
         while True:
             x = random.randint(20, config.CAMERA_WIDTH - 20)
             y = random.randint(20, config.CAMERA_HEIGHT - 20)
-            # Check if too close to snake head
+            # 检查是否离蛇头太近
             if self.snake:
                 head_x, head_y = self.snake[0]
                 dist = ((x - head_x) ** 2 + (y - head_y) ** 2) ** 0.5
-                if dist > 50:  # At least 50 pixels away
+                if dist > 50:  # 至少距离50像素
                     self.food = (x, y)
                     break
             else:
@@ -71,20 +71,20 @@ class SnakeGame:
     
 
     def process_gesture(self, gesture):
-        # No quit gesture - use keyboard only
+        # 无退出手势 - 仅使用键盘
         
         if self.state == "STOPPED" or self.state == "GAME_OVER":
             if gesture == config.GESTURE_RESTART:
                 self.start_game()
         
         elif self.state == "RUNNING":
-            # No pause - only running or game over
+            # 无暂停 - 仅运行或游戏结束
             pass
                 
         return None
 
     def change_direction(self, new_dir):
-        # Prevent 180 degree turns
+        # 防止180度掉头
         opposites = {
             config.GESTURE_UP: config.GESTURE_DOWN,
             config.GESTURE_DOWN: config.GESTURE_UP,
@@ -99,49 +99,49 @@ class SnakeGame:
             return
         
         if self.control_mode == "DIRECT":
-            # Direct control: smooth continuous movement
+            # 直接控制：平滑连续移动
             if self.target_position is not None:
                 self.move_smooth()
         else:
-            # Gesture control: move at fixed intervals
+            # 手势控制：按固定间隔移动
             current_time = time.time() * 1000
             if current_time - self.last_move_time >= self.speed:
                 self.move()
                 self.last_move_time = current_time
     
     def set_target_position(self, normalized_x, normalized_y):
-        """Set target position from normalized coordinates (0-1) for entire screen."""
-        # Convert normalized coordinates to full screen pixel coordinates
+        """根据归一化坐标(0-1)设置全屏目标位置。"""
+        # 将归一化坐标转换为全屏像素坐标
         pixel_x = normalized_x * config.CAMERA_WIDTH
         pixel_y = normalized_y * config.CAMERA_HEIGHT
         
-        # No clamping - allow full screen movement
+        # 不进行限制 - 允许全屏移动
         self.target_position = (pixel_x, pixel_y)
     
     def move_smooth(self):
-        """Snake head directly follows finger position."""
+        """蛇头直接跟随手指位置。"""
         if not self.target_position or not self.snake:
             return
         
-        # Directly set head to finger position
+        # 直接将蛇头设置为手指位置
         new_head_x, new_head_y = self.target_position
         
-        # Endless mode: no self-collision game over
+        # 无尽模式：无自身碰撞游戏结束
         
-        # Update snake body - follow the head
+        # 更新蛇身 - 跟随蛇头
         new_snake = [(new_head_x, new_head_y)]
         
-        # Each segment follows the one in front of it
+        # 每个节段跟随其前一个节段
         for i in range(1, len(self.snake)):
             prev_x, prev_y = new_snake[i - 1]
             curr_x, curr_y = self.snake[i]
             
-            # Calculate distance to previous segment
+            # 计算到前一个节段的距离
             dx = prev_x - curr_x
             dy = prev_y - curr_y
             dist = (dx ** 2 + dy ** 2) ** 0.5
             
-            # Move towards previous segment if too far
+            # 如果太远则向前一个节段移动
             if dist > self.segment_distance:
                 ratio = self.segment_distance / dist if dist != 0 else 0
                 target_x = prev_x - dx * ratio
@@ -154,14 +154,14 @@ class SnakeGame:
         
         self.snake = new_snake
         
-        # Check food collision
+        # 检查食物碰撞
         if self.food:
             fx, fy = self.food
             dist_to_food = ((new_head_x - fx) ** 2 + (new_head_y - fy) ** 2) ** 0.5
-            if dist_to_food < 15:  # Collision radius for food
+            if dist_to_food < 15:  # 食物碰撞半径
                 self.score += 10
                 self.update_difficulty()
-                # Add new segment at the tail
+                # 在尾部添加新节段
                 tail_x, tail_y = self.snake[-1]
                 if len(self.snake) > 1:
                     prev_tail_x, prev_tail_y = self.snake[-2]
@@ -193,18 +193,18 @@ class SnakeGame:
         elif self.direction == config.GESTURE_RIGHT:
             head_x += 1
 
-        # Check collisions
+        # 检查碰撞
         if (head_x < 0 or head_x >= config.GRID_WIDTH or
             head_y < 0 or head_y >= config.GRID_HEIGHT or
             (head_x, head_y) in self.snake):
             self.game_over()
             return
 
-        # Move snake
+        # 移动蛇
         new_head = (head_x, head_y)
         self.snake.insert(0, new_head)
 
-        # Check food
+        # 检查食物
         if new_head == self.food:
             self.score += 10 # +1 length, +10 score? Prompt says +1 length, score +?. Let's assume +10.
             self.update_difficulty()
