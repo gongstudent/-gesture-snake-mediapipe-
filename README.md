@@ -10,20 +10,6 @@
 
 ---
 
-## 📺 演示效果
-
-*(此处建议插入 15-30 秒的游戏演示 GIF，展示流畅的指尖控制与无尽模式体验)*
-
-<!-- <img src="assets/demo.gif" width="600" alt="Game Demo"> -->
-
-## 📸 游戏截图
-
-| 游戏运行 | 暂停菜单 | 手势准星 |
-|:---:|:---:|:---:|
-| *(请补充运行截图)* | *(请补充暂停截图)* | *(请补充准星特写)* |
-| <!-- <img src="assets/screenshot_game.jpg" width="200"> --> | <!-- <img src="assets/screenshot_pause.jpg" width="200"> --> | <!-- <img src="assets/screenshot_crosshair.jpg" width="200"> --> |
-
----
 
 ## 📖 项目简介
 
@@ -46,8 +32,7 @@
 
 ### 在线体验
 1. 本项目已配置 GitHub Pages 支持。
-2. 直接访问项目的 GitHub Pages 地址即可（需在设置中开启）。
-3. 或在本地进入 `docs/` 目录运行。
+2. 直接访问项目的 GitHub Pages 地址即可。
 
 *(注：Web 版完全运行在本地浏览器中，不会上传任何视频数据)*
 
