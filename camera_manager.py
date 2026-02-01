@@ -66,8 +66,18 @@ class CameraManager:
 
     def release(self):
         """释放摄像头资源。"""
-        if self.cap:
-            self.cap.release()
-            self.cap = None
         self.is_running = False
+        
+        if self.cap:
+            # 先停止读取
+            if self.cap.isOpened():
+                self.cap.release()
+            self.cap = None
+            
+        # 确保销毁所有 OpenCV 窗口
+        cv2.destroyAllWindows()
+        
+        # 给系统一点时间完全释放资源
+        time.sleep(0.1)
+        
         print("摄像头已释放。")

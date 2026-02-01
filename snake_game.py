@@ -41,10 +41,9 @@ class SnakeGame:
         self.target_position = (center_x, center_y)
 
     def pause_game(self):
+        """暂停游戏"""
         if self.state == "RUNNING":
             self.state = "PAUSED"
-        elif self.state == "PAUSED":
-            self.state = "RUNNING"
 
     def stop_game(self):
         self.state = "STOPPED"
@@ -70,18 +69,32 @@ class SnakeGame:
                 break
     
 
+    def resume_game(self):
+        """恢复游戏"""
+        if self.state == "PAUSED":
+            self.state = "RUNNING"
+    
     def process_gesture(self, gesture):
-        # 无退出手势 - 仅使用键盘
+        """处理手势输入"""
         
         if self.state == "STOPPED" or self.state == "GAME_OVER":
+            # OK手势：开始游戏
             if gesture == config.GESTURE_RESTART:
                 self.start_game()
         
         elif self.state == "RUNNING":
-            # 无暂停 - 仅运行或游戏结束
-            pass
+            # 握拳手势：暂停游戏
+            if gesture == config.GESTURE_PAUSE:
+                self.pause_game()
+        
+        elif self.state == "PAUSED":
+            # OK手势：恢复游戏
+            if gesture == config.GESTURE_RESTART:
+                self.resume_game()
                 
         return None
+    
+
 
     def change_direction(self, new_dir):
         # 防止180度掉头
@@ -123,7 +136,7 @@ class SnakeGame:
         if not self.target_position or not self.snake:
             return
         
-        # 直接将蛇头设置为手指位置
+        # 直接将蛇头设置为手指位置（无延迟，更贴近手指）
         new_head_x, new_head_y = self.target_position
         
         # 无尽模式：无自身碰撞游戏结束

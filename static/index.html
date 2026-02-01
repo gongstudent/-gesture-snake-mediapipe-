@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手势贪吃蛇游戏</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Microsoft YaHei', sans-serif;
+            background: #0F172A;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 视频容器 */
+        .video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #video-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* 覆盖层 */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* Glassmorphism 玻璃拟态卡片 */
+        .glass-card {
+            background: rgba(15, 23, 42, 0);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.125);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            padding: 20px;
+            color: #F8FAFC;
+        }
+
+        /* 得分面板 */
+        .score-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 200px;
+            padding: 24px 20px;
+            text-align: center;
+            animation: slideInLeft 0.5s ease-out;
+        }
+
+        .score-label {
+            font-size: 18px;
+            font-weight: 600;
+            color: #94A3B8;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .score-value {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22C55E 0%, #10B981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            transition: transform 0.3s ease;
+        }
+
+        .score-value.pulse {
+            animation: scorePulse 0.3s ease;
+        }
+
+        @keyframes scorePulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.15);
+            }
+        }
+
+        /* 控制面板 */
+        .controls-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 480px;
+            animation: slideInUp 0.5s ease-out;
+        }
+
+        .controls-panel h3 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #22C55E;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .controls-panel h3::before {
+            content: "🎮";
+            font-size: 28px;
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 16px;
+            color: #CBD5E1;
+        }
+
+        .control-item .icon {
+            font-size: 20px;
+            margin-right: 12px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .control-item .keys {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+        }
+
+        .control-item kbd {
+            min-width: 28px;
+            height: 28px;
+            padding: 0 8px;
+            font-size: 14px;
+            border-radius: 6px;
+            border-width: 1px;
+            box-shadow: 0 2px 6px rgba(34, 197, 94, 0.1);
+        }
+
+        .key-hints {
+            display: flex;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        kbd {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            height: 48px;
+            padding: 0 16px;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+            border: 2px solid rgba(34, 197, 94, 0.5);
+            border-radius: 8px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #22C55E;
+            font-family: 'Consolas', monospace;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        kbd:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(34, 197, 94, 0.3);
+        }
+
+        /* 状态模态框 */
+        .status-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            max-width: 90vw;
+            padding: 48px 40px;
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .status-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .status-modal h2 {
+            font-size: 56px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #22C55E 0%, #10B981 50%, #059669 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+            text-shadow: 0 4px 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .status-modal p {
+            font-size: 24px;
+            color: #94A3B8;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .status-modal .score-display {
+            font-size: 32px;
+            font-weight: 700;
+            color: #22C55E;
+            margin-top: 16px;
+        }
+
+        .status-modal .instructions {
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-modal .instructions p {
+            font-size: 18px;
+            color: #CBD5E1;
+            margin: 8px 0;
+        }
+
+
+
+        /* 蛇和食物 Canvas */
+        #game-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* 动画 */
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-100px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(100px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 连接状态指示器 */
+        .connection-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(15, 23, 42, 0.35);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.125);
+            border-radius: 12px;
+            font-size: 14px;
+            color: #94A3B8;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #EF4444;
+            animation: blink 1.5s infinite;
+        }
+
+        .status-dot.connected {
+            background: #22C55E;
+            animation: none;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* 手势信息显示 */
+        .gesture-info {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            padding: 16px 24px;
+            background: rgba(15, 23, 42, 0.35);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.125);
+            border-radius: 12px;
+            font-size: 16px;
+            color: #CBD5E1;
+            min-width: 180px;
+        }
+
+        .gesture-info .label {
+            font-size: 12px;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .gesture-info .value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #22C55E;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 视频流 -->
+    <div class="video-container">
+        <img id="video-stream" src="/video_feed" alt="视频流">
+    </div>
+
+    <!-- 游戏画布 (用于绘制蛇和食物) -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- UI 覆盖层 -->
+    <div class="overlay">
+        <!-- 得分面板 -->
+        <div class="score-panel glass-card">
+            <div class="score-label">得分</div>
+            <div class="score-value" id="score">0</div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="controls-panel glass-card">
+            <h3>控制说明</h3>
+            <div class="control-list">
+                <div class="control-item">
+                    <span class="icon">👆</span>
+                    <span>控制移动</span>
+                    <span class="keys" style="visibility: hidden;"><kbd></kbd></span>
+                </div>
+                <div class="control-item">
+                    <span class="icon">👌</span>
+                    <span>开始 / 恢复</span>
+                    <div class="keys">
+
+                    </div>
+                </div>
+                <div class="control-item">
+                    <span class="icon">👊</span>
+                    <span>暂停 / 退出</span>
+                    <div class="keys">
+                        <kbd>Q</kbd>
+                    </div>
+                </div>
+                <div class="control-item">
+                    <span class="icon">🔄</span>
+                    <span>重新开始</span>
+                    <div class="keys">
+                        <kbd>R</kbd>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态模态框 -->
+        <div class="status-modal glass-card" id="status-modal">
+            <h2 id="status-title">贪吃蛇</h2>
+            <p id="status-message">做 OK 手势开始游戏</p>
+            <div class="score-display" id="modal-score" style="display: none;"></div>
+            <div class="instructions" id="modal-instructions">
+                <p>👋 欢迎来到手势贪吃蛇！</p>
+                <div style="text-align: left; display: inline-block; margin-top: 15px; font-size: 20px;">
+                    <p>👆 <strong>移动</strong>：食指指向屏幕位置</p>
+                    <p>👌 <strong>开始</strong>：做OK手势启动</p>
+                    <p>👊 <strong>暂停/退出</strong>：握拳暂停，或按 <kbd
+                            style="min-width: 30px; height: 30px; font-size: 16px;">Q</kbd>
+                    </p>
+                    <p>🔄 <strong>重开</strong>：游戏结束后可按 <kbd
+                            style="min-width: 30px; height: 30px; font-size: 16px;">R</kbd></p>
+                </div>
+            </div>
+        </div>
+
+
+
+        <!-- 连接状态 -->
+        <div class="connection-status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="connection-text">正在连接...</span>
+        </div>
+
+        <!-- 手势信息 -->
+        <div class="gesture-info">
+            <div class="label">当前手势</div>
+            <div class="value" id="gesture-display">NONE</div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket 连接
+        const socket = io();
+
+        // DOM 元素
+        const scoreElement = document.getElementById('score');
+        const statusModal = document.getElementById('status-modal');
+        const statusTitle = document.getElementById('status-title');
+        const statusMessage = document.getElementById('status-message');
+        const modalScore = document.getElementById('modal-score');
+        const modalInstructions = document.getElementById('modal-instructions');
+        const statusDot = document.getElementById('status-dot');
+        const connectionText = document.getElementById('connection-text');
+        const gestureDisplay = document.getElementById('gesture-display');
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 设置画布尺寸
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 连接事件
+        socket.on('connect', () => {
+            console.log('已连接到服务器');
+            statusDot.classList.add('connected');
+            connectionText.textContent = '已连接';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('与服务器断开连接');
+            statusDot.classList.remove('connected');
+            connectionText.textContent = '未连接';
+        });
+
+        // 游戏状态更新
+        let currentState = null;
+
+        socket.on('game_state', (data) => {
+            // 更新分数
+            updateScore(data.score);
+
+            // 更新游戏状态
+            updateGameState(data.state, data.score);
+
+            // 更新手指准星
+            updateCrosshair(data.finger_pos, data.state);
+
+            // 更新手势显示
+            updateGesture(data.gesture);
+
+            // 绘制蛇和食物
+            drawGame(data);
+        });
+
+        function updateScore(newScore) {
+            if (scoreElement.textContent !== String(newScore)) {
+                scoreElement.textContent = newScore;
+                scoreElement.classList.add('pulse');
+                setTimeout(() => scoreElement.classList.remove('pulse'), 300);
+            }
+        }
+
+        function updateGameState(state, score) {
+            if (currentState === state) return;
+            currentState = state;
+
+            switch (state) {
+                case 'STOPPED':
+                    statusTitle.textContent = '贪吃蛇';
+                    statusMessage.textContent = '做 OK 手势开始游戏';
+                    modalScore.style.display = 'none';
+                    modalInstructions.style.display = 'block';
+                    statusModal.classList.add('show');
+                    break;
+
+                case 'RUNNING':
+                    statusModal.classList.remove('show');
+                    break;
+
+                case 'PAUSED':
+                    statusTitle.textContent = '已暂停';
+                    statusMessage.textContent = '👌 OK手势继续 / Q键退出';
+                    modalScore.textContent = `得分: ${score}`;
+                    modalScore.style.display = 'block';
+                    modalInstructions.style.display = 'none';
+                    statusModal.classList.add('show');
+                    break;
+
+                case 'GAME_OVER':
+                    statusTitle.textContent = '游戏结束';
+                    statusMessage.textContent = '👌 OK手势 或 R键 重开';
+                    modalScore.textContent = `最终得分: ${score}`;
+                    modalScore.style.display = 'block';
+                    modalInstructions.style.display = 'none';
+                    statusModal.classList.add('show');
+                    break;
+            }
+        }
+
+        function updateCrosshair(fingerPos, state) {
+            // 准星已移除，保留函数避免报错
+        }
+
+        function updateGesture(gesture) {
+            if (gesture && gesture !== 'NONE') {
+                gestureDisplay.textContent = gesture;
+                gestureDisplay.style.color = '#22C55E';
+            } else {
+                gestureDisplay.textContent = 'NONE';
+                gestureDisplay.style.color = '#64748B';
+            }
+        }
+
+        function drawGame(data) {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制蛇
+            if (data.snake && data.snake.length > 0) {
+                data.snake.forEach((segment, index) => {
+                    const x = segment[0] * canvas.width;
+                    const y = segment[1] * canvas.height;
+
+                    // 颜色渐变
+                    const ratio = index / Math.max(1, data.snake.length - 1);
+                    const green = 255 - Math.floor(ratio * 155);
+
+                    if (index === 0) {
+                        // 蛇头 - 主体
+                        ctx.fillStyle = `rgb(34, ${green}, 94)`;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // 蛇头 - 内核
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.beginPath();
+                        ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                        ctx.fill();
+                    } else {
+                        // 蛇身
+                        ctx.fillStyle = `rgb(34, ${green}, 94)`;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // 连接线
+                        if (index > 0) {
+                            const prevX = data.snake[index - 1][0] * canvas.width;
+                            const prevY = data.snake[index - 1][1] * canvas.height;
+                            ctx.strokeStyle = `rgb(34, ${green}, 94)`;
+                            ctx.lineWidth = 14;
+                            ctx.lineCap = 'round';
+                            ctx.beginPath();
+                            ctx.moveTo(prevX, prevY);
+                            ctx.lineTo(x, y);
+                            ctx.stroke();
+                        }
+                    }
+                });
+            }
+
+            // 绘制食物
+            if (data.food) {
+                const fx = data.food[0] * canvas.width;
+                const fy = data.food[1] * canvas.height;
+
+                // 多层光环
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(fx, fy, 20, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(fx, fy, 15, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                // 主体
+                ctx.fillStyle = '#EF4444';
+                ctx.beginPath();
+                ctx.arc(fx, fy, 12, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // 内核
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(fx, fy, 6, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'r' || e.key === 'R') {
+                socket.emit('game_action', { action: 'restart' });
+            } else if (e.key === 'q' || e.key === 'Q') {
+                if (currentState === 'RUNNING') {
+                    socket.emit('game_action', { action: 'pause' });
+                } else if (currentState === 'PAUSED') {
+                    socket.emit('game_action', { action: 'exit' });
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

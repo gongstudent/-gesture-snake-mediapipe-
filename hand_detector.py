@@ -18,6 +18,48 @@ except (AttributeError, ImportError):
     mp_hands = mp.hands
     mp_drawing = mp.drawing_utils
 
+class OneEuroFilter:
+    def __init__(self, t0, x0, min_cutoff=1.0, beta=0.0, d_cutoff=1.0):
+        """初始化 One Euro Filter。"""
+        self.t_prev = t0
+        self.x_prev = x0
+        self.dx_prev = 0.0
+        self.min_cutoff = min_cutoff
+        self.beta = beta
+        self.d_cutoff = d_cutoff
+
+    def __call__(self, t, x):
+        """计算过滤后的值。"""
+        # 计算采样周期 Te
+        te = t - self.t_prev
+        
+        # 计算 alpha (指数平滑系数)
+        # alpha(cutoff) = 1 / (1 + tau/Te), where tau = 1 / (2 * pi * cutoff)
+        def smoothing_factor(te, cutoff):
+            r = 2 * np.pi * cutoff * te
+            return r / (r + 1)
+
+        # 计算速度 dx (使用低通滤波)
+        dx = (x - self.x_prev) / te if te > 0 else 0.0
+        alpha_d = smoothing_factor(te, self.d_cutoff)
+        dx_hat = alpha_d * dx + (1 - alpha_d) * self.dx_prev
+
+        # 计算自适应截止频率 cutoff
+        cutoff = self.min_cutoff + self.beta * abs(dx_hat)
+        
+        # 计算主滤波器的 alpha
+        alpha = smoothing_factor(te, cutoff)
+        
+        # 计算最终滤波值
+        x_hat = alpha * x + (1 - alpha) * self.x_prev
+
+        # 更新状态
+        self.t_prev = t
+        self.x_prev = x_hat
+        self.dx_prev = dx_hat
+
+        return x_hat
+
 class HandDetector:
     def __init__(self):
         self.backend = getattr(config, "HAND_BACKEND", "SOLUTIONS")
@@ -26,6 +68,17 @@ class HandDetector:
         self.mp_draw = None
         self.prev_bbox = None  # (x, y, w, h) in detection (no-pad) coordinates
         self.latest_finger_norm = None  # normalized (0-1) in detection (no-pad)
+        
+        # One Euro Filter 初始化
+        # 参数调整建议：
+        # min_cutoff: 越小，低速时越平滑（抖动越少），但延迟越高。推荐 0.5 - 1.0
+        # beta: 越大，高速时响应越快（延迟越低），但可能引入高频抖动。推荐 0.001 - 0.01
+        self.filter_x = None
+        self.filter_y = None
+        self.min_cutoff = 0.5 
+        self.beta = 0.005
+        self.d_cutoff = 1.0 
+        
         if self.backend == "TASKS":
             try:
                 from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
@@ -107,12 +160,38 @@ class HandDetector:
         with self.lock:
             return self.latest_result, self.latest_gesture
     
+    def _update_finger_pos(self, raw_x, raw_y):
+        """应用 One Euro Filter 更新手指位置。"""
+        curr_time = time.time()
+        
+        # 初始化滤波器
+        if self.filter_x is None or self.filter_y is None:
+            self.filter_x = OneEuroFilter(curr_time, raw_x, min_cutoff=self.min_cutoff, beta=self.beta, d_cutoff=self.d_cutoff)
+            self.filter_y = OneEuroFilter(curr_time, raw_y, min_cutoff=self.min_cutoff, beta=self.beta, d_cutoff=self.d_cutoff)
+            return (raw_x, raw_y)
+        
+        # 如果时间间隔太大（例如检测丢失后恢复），重置滤波器
+        if curr_time - self.filter_x.t_prev > 1.0:
+             self.filter_x = OneEuroFilter(curr_time, raw_x, min_cutoff=self.min_cutoff, beta=self.beta, d_cutoff=self.d_cutoff)
+             self.filter_y = OneEuroFilter(curr_time, raw_y, min_cutoff=self.min_cutoff, beta=self.beta, d_cutoff=self.d_cutoff)
+             return (raw_x, raw_y)
+
+        # 过滤
+        smooth_x = self.filter_x(curr_time, raw_x)
+        smooth_y = self.filter_y(curr_time, raw_y)
+        return (smooth_x, smooth_y)
+
     def get_finger_position(self):
         """获取用于直接控制的食指指尖位置（归一化 0-1）。"""
         with self.lock:
             if self.latest_finger_norm is not None:
                 return self.latest_finger_norm
+            # ... (保留旧的 fallback 逻辑，虽然现在 latest_finger_norm 应该总是被更新)
             if not self.is_tasks and self.latest_result and self.latest_result.multi_hand_landmarks:
+                # 注意：这个 fallback 分支没有应用滤波器，但理论上不应该走到这里，
+                # 因为 latest_finger_norm 在 detection loop 中更新了。
+                # 为了安全起见，这里也可以应用，但需要状态管理。
+                # 简单起见，我们信任 detection loop 的更新。
                 hand_landmarks = self.latest_result.multi_hand_landmarks[0]
                 index_tip = hand_landmarks.landmark[8]
                 pad = getattr(config, "DETECTION_PAD", 0)
@@ -157,10 +236,9 @@ class HandDetector:
                         idx = lm[8]
                         x_px = idx.x * w_pad - pad
                         y_px = idx.y * h_pad - pad
-                        self.latest_finger_norm = (
-                            max(0.0, min(1.0, x_px / config.DETECTION_WIDTH)),
-                            max(0.0, min(1.0, y_px / config.DETECTION_HEIGHT)),
-                        )
+                        raw_norm_x = max(0.0, min(1.0, x_px / config.DETECTION_WIDTH))
+                        raw_norm_y = max(0.0, min(1.0, y_px / config.DETECTION_HEIGHT))
+                        self.latest_finger_norm = self._update_finger_pos(raw_norm_x, raw_norm_y)
                         # update bbox
                         xs = [(p.x * w_pad - pad) for p in lm]
                         ys = [(p.y * h_pad - pad) for p in lm]
@@ -196,10 +274,9 @@ class HandDetector:
                         idx = lm[8]
                         x_global = x0 + int(idx.x * (x1 - x0))
                         y_global = y0 + int(idx.y * (y1 - y0))
-                        self.latest_finger_norm = (
-                            max(0.0, min(1.0, x_global / config.DETECTION_WIDTH)),
-                            max(0.0, min(1.0, y_global / config.DETECTION_HEIGHT)),
-                        )
+                        raw_norm_x = max(0.0, min(1.0, x_global / config.DETECTION_WIDTH))
+                        raw_norm_y = max(0.0, min(1.0, y_global / config.DETECTION_HEIGHT))
+                        self.latest_finger_norm = self._update_finger_pos(raw_norm_x, raw_norm_y)
                         xs = [x0 + int(p.x * (x1 - x0)) for p in lm]
                         ys = [y0 + int(p.y * (y1 - y0)) for p in lm]
                         x0b = max(0, min(xs))
@@ -218,10 +295,9 @@ class HandDetector:
                         index_tip = hand_landmarks.landmark[8]
                         x_px = index_tip.x * w_pad - pad
                         y_px = index_tip.y * h_pad - pad
-                        self.latest_finger_norm = (
-                            max(0.0, min(1.0, x_px / config.DETECTION_WIDTH)),
-                            max(0.0, min(1.0, y_px / config.DETECTION_HEIGHT)),
-                        )
+                        raw_norm_x = max(0.0, min(1.0, x_px / config.DETECTION_WIDTH))
+                        raw_norm_y = max(0.0, min(1.0, y_px / config.DETECTION_HEIGHT))
+                        self.latest_finger_norm = self._update_finger_pos(raw_norm_x, raw_norm_y)
                         xs = []
                         ys = []
                         for p in hand_landmarks.landmark:
@@ -256,10 +332,9 @@ class HandDetector:
                         idx = hl.landmark[8]
                         x_global = x0 + int(idx.x * (x1 - x0))
                         y_global = y0 + int(idx.y * (y1 - y0))
-                        self.latest_finger_norm = (
-                            max(0.0, min(1.0, x_global / config.DETECTION_WIDTH)),
-                            max(0.0, min(1.0, y_global / config.DETECTION_HEIGHT)),
-                        )
+                        raw_norm_x = max(0.0, min(1.0, x_global / config.DETECTION_WIDTH))
+                        raw_norm_y = max(0.0, min(1.0, y_global / config.DETECTION_HEIGHT))
+                        self.latest_finger_norm = self._update_finger_pos(raw_norm_x, raw_norm_y)
                         xs = [x0 + int(p.x * (x1 - x0)) for p in hl.landmark]
                         ys = [y0 + int(p.y * (y1 - y0)) for p in hl.landmark]
                         x0b = max(0, min(xs))
@@ -324,11 +399,7 @@ class HandDetector:
         
         total_fingers = fingers.count(1) + thumb_up
         
-        # 1. 退出：所有5个手指
-        if total_fingers == 5:
-            return config.GESTURE_QUIT
-        
-        # 2. 暂停：握拳 (0个手指)
+        # 1. 暂停：握拳 (0个手指)
         if total_fingers == 0:
             return config.GESTURE_PAUSE
         
@@ -433,8 +504,6 @@ class HandDetector:
         ref_len = ((lm_list[0][0]-lm_list[5][0])**2 + (lm_list[0][1]-lm_list[5][1])**2)**0.5
         thumb_up = 1 if dist_thumb_index > ref_len * 0.5 else 0
         total = fingers.count(1) + thumb_up
-        if total == 5:
-            return config.GESTURE_QUIT
         if total == 0:
             return config.GESTURE_PAUSE
         dist_ok = ((lm_list[4][0]-lm_list[8][0])**2 + (lm_list[4][1]-lm_list[8][1])**2)**0.5

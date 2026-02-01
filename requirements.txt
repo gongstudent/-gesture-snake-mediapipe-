@@ -1,4 +1,12 @@
+# Core Dependencies
 opencv-python>=4.8.0.76
 mediapipe>=0.10.14
 numpy>=1.24.3
 Pillow>=10.0.0
+
+# Web Application Dependencies
+Flask==3.0.0
+Flask-SocketIO==5.3.5
+Flask-CORS==4.0.0
+python-socketio==5.10.0
+eventlet==0.33.3

@@ -52,21 +52,21 @@ resizeCanvas();
 function initGame() {
     gameState.score = 0;
     scoreEl.innerText = '0';
-    
+
     // 初始化蛇（屏幕中心）
     const cx = CONFIG.cameraWidth / 2;
     const cy = CONFIG.cameraHeight / 2;
     gameState.snake = [
-        {x: cx, y: cy},
-        {x: cx, y: cy + CONFIG.segmentDist},
-        {x: cx, y: cy + CONFIG.segmentDist * 2}
+        { x: cx, y: cy },
+        { x: cx, y: cy + CONFIG.segmentDist },
+        { x: cx, y: cy + CONFIG.segmentDist * 2 }
     ];
-    gameState.targetPos = {x: cx, y: cy};
+    gameState.targetPos = { x: cx, y: cy };
     gameState.lastTime = performance.now(); // Reset timer
-    
+
     spawnFood();
     gameState.status = 'RUNNING';
-    
+
     startScreen.style.opacity = '0';
     setTimeout(() => startScreen.style.display = 'none', 300);
     pauseScreen.style.display = 'none';
@@ -87,7 +87,7 @@ function spawnFood() {
         const d = Math.hypot(x - h.x, y - h.y);
         if (d < 50) valid = false;
     }
-    gameState.food = {x, y};
+    gameState.food = { x, y };
 }
 
 function updateGame(dt) {
@@ -99,7 +99,7 @@ function updateGame(dt) {
         const dx = gameState.targetPos.x - head.x;
         const dy = gameState.targetPos.y - head.y;
         const dist = Math.hypot(dx, dy);
-        
+
         // 只有当距离足够大时才移动，避免抖动
         if (dist > 5) {
             // 使用 Delta Time 计算当帧移动距离
@@ -107,7 +107,7 @@ function updateGame(dt) {
             const moveStep = CONFIG.snakeSpeedPPS * dt;
             const moveDist = Math.min(dist, moveStep);
             const angle = Math.atan2(dy, dx);
-            
+
             // 直接移动，不使用平滑，保证响应速度
             head.x += Math.cos(angle) * moveDist;
             head.y += Math.sin(angle) * moveDist;
@@ -117,21 +117,21 @@ function updateGame(dt) {
     // 2. 蛇身跟随
     for (let i = 1; i < gameState.snake.length; i++) {
         const curr = gameState.snake[i];
-        const prev = gameState.snake[i-1];
-        
+        const prev = gameState.snake[i - 1];
+
         const dx = prev.x - curr.x;
         const dy = prev.y - curr.y;
         const dist = Math.hypot(dx, dy);
-        
+
         if (dist > CONFIG.segmentDist) {
             const ratio = dist !== 0 ? CONFIG.segmentDist / dist : 0;
             const targetX = prev.x - dx * ratio;
             const targetY = prev.y - dy * ratio;
-            
+
             // 使用帧率无关的平滑公式 (Lerp with Delta Time)
             // factor = 1 - exp(-decay * dt)
             // decay 越大越快。CONFIG.tailSmooth 调整为 decay 值，比如 10-20
-            const decay = 15.0; 
+            const decay = 15.0;
             const smoothFactor = 1 - Math.exp(-decay * dt);
 
             curr.x += (targetX - curr.x) * smoothFactor;
@@ -148,7 +148,7 @@ function updateGame(dt) {
             scoreEl.innerText = gameState.score;
             // 增加长度
             const tail = gameState.snake[gameState.snake.length - 1];
-            gameState.snake.push({...tail});
+            gameState.snake.push({ ...tail });
             spawnFood();
         }
     }
@@ -173,23 +173,23 @@ function drawGame() {
         canvasCtx.moveTo(gameState.snake[0].x, gameState.snake[0].y);
         // 使用二次贝塞尔曲线使身体更平滑
         for (let i = 1; i < gameState.snake.length - 1; i++) {
-            const xc = (gameState.snake[i].x + gameState.snake[i+1].x) / 2;
-            const yc = (gameState.snake[i].y + gameState.snake[i+1].y) / 2;
+            const xc = (gameState.snake[i].x + gameState.snake[i + 1].x) / 2;
+            const yc = (gameState.snake[i].y + gameState.snake[i + 1].y) / 2;
             canvasCtx.quadraticCurveTo(gameState.snake[i].x, gameState.snake[i].y, xc, yc);
         }
         // 连接最后一段
         if (gameState.snake.length > 1) {
-            const last = gameState.snake[gameState.snake.length-1];
+            const last = gameState.snake[gameState.snake.length - 1];
             canvasCtx.lineTo(last.x, last.y);
         }
-        
+
         canvasCtx.lineCap = 'round';
         canvasCtx.lineJoin = 'round';
         canvasCtx.lineWidth = CONFIG.segmentDist * 1.8; // 动态调整宽度
         // 简单渐变色模拟
         const grad = canvasCtx.createLinearGradient(
             gameState.snake[0].x, gameState.snake[0].y,
-            gameState.snake[gameState.snake.length-1].x, gameState.snake[gameState.snake.length-1].y
+            gameState.snake[gameState.snake.length - 1].x, gameState.snake[gameState.snake.length - 1].y
         );
         grad.addColorStop(0, CONFIG.colors.bodyStart);
         grad.addColorStop(1, CONFIG.colors.bodyEnd);
@@ -208,7 +208,7 @@ function drawGame() {
 
     // 绘制准星
     if (gameState.targetPos && gameState.status === 'RUNNING') {
-        const {x, y} = gameState.targetPos;
+        const { x, y } = gameState.targetPos;
         canvasCtx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
         canvasCtx.lineWidth = 2;
         canvasCtx.beginPath();
@@ -227,9 +227,11 @@ function drawGame() {
 // MediaPipe 手势识别
 // ==========================================
 
-const hands = new Hands({locateFile: (file) => {
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-}});
+const hands = new Hands({
+    locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }
+});
 
 hands.setOptions({
     maxNumHands: 1,
@@ -250,21 +252,21 @@ function onResults(results) {
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-    
+
     // 2. 识别逻辑
     let gesture = 'NONE';
     let fingerPos = null;
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0];
-        
+
         // 获取关键点 (0-1 归一化坐标)
         const thumbTip = landmarks[4];
         const indexTip = landmarks[8];
         const middleTip = landmarks[12];
         const ringTip = landmarks[16];
         const pinkyTip = landmarks[20];
-        
+
         // 简单的手指状态判断 (y坐标小于关节)
         const isIndexUp = indexTip.y < landmarks[6].y;
         const isMiddleUp = middleTip.y < landmarks[10].y;
@@ -281,6 +283,9 @@ function onResults(results) {
         // OK 手势检测 (拇指与食指接触)
         const distThumbIndex = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
         const isOK = distThumbIndex < 0.05 && isMiddleUp && isRingUp;
+
+        // 握拳检测 (所有手指都收缩)
+        const isFist = fingersUp === 0;
 
         // 坐标映射 (MediaPipe输出是归一化的)
         fingerPos = {
@@ -299,6 +304,12 @@ function onResults(results) {
                 // 重置时间防止跳跃
                 gameState.lastTime = performance.now();
             }
+        } else if (isFist) {
+            if (gameState.status === 'RUNNING') {
+                gameState.status = 'PAUSED';
+                if (pauseScoreEl) pauseScoreEl.innerText = gameState.score;
+                pauseScreen.style.display = 'flex';
+            }
         } else {
             // 更新目标位置
             if (gameState.status === 'RUNNING' && fingerPos) {
@@ -309,7 +320,7 @@ function onResults(results) {
 
     // 3. 游戏渲染
     // 限制最大 dt 防止切换后台后跳跃
-    const safeDt = Math.min(dt, 0.1); 
+    const safeDt = Math.min(dt, 0.1);
     updateGame(safeDt);
     drawGame();
 
@@ -319,7 +330,7 @@ function onResults(results) {
 // 摄像头启动
 const camera = new Camera(videoElement, {
     onFrame: async () => {
-        await hands.send({image: videoElement});
+        await hands.send({ image: videoElement });
     },
     width: 1280,
     height: 720

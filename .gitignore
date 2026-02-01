@@ -13,3 +13,4 @@ Thumbs.db
 models/
 !models/README.md
 .trae/
+.agent/

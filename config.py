@@ -3,7 +3,7 @@ import cv2
 # ======================
 # 显示设置 / Display Settings
 # ======================
-WINDOW_NAME = "Gesture Snake Game"
+WINDOW_NAME = "手势贪吃蛇游戏"
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 GAME_WIDTH = 640
@@ -71,7 +71,6 @@ GESTURE_LEFT = "LEFT"
 GESTURE_RIGHT = "RIGHT"
 GESTURE_PAUSE = "PAUSE"     # 握拳
 GESTURE_RESTART = "RESTART" # OK
-GESTURE_QUIT = "QUIT"       # 五指张开
 
 # 手势置信度阈值
-GESTURE_CONFIDENCE_THRESHOLD = 0.7
+GESTURE_CONFIDENCE_THRESHOLD = 0
